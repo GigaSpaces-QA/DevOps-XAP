@@ -32,7 +32,7 @@ function clone_repo {
 
 function update_pom {
     echo "Removing shiro modules from pom.xml"
-	sed -i '/<module>shiro.*<\/module>/d' pom.xml
+	sed -i -e '/<module>shiro.*<\/module>/d' pom.xml
 	if [ "$?" != "0" ]; then
 		return 2
 	else
@@ -41,7 +41,7 @@ function update_pom {
 }
 
 function commit_push {
-	local modifiedFiles=$(git status | grep 'modified:' | wc -l)
+	local modifiedFiles=$(git status | grep 'modified:' | wc -l | sed -e 's/^[ \t]*//')
 	if [ "$modifiedFiles" != 1 ]; then
 		echo "No files were modified."
 		return 0
