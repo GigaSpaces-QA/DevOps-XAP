@@ -1,0 +1,105 @@
+#!/bin/bash
+
+# run this script on a new branch of 10.x only!!
+
+# return codes:
+# 0 - OK
+# 1 - canceled
+# 2 - error
+workdir="$(pwd)/DevOps-$(date +%s)"
+set -x
+function handle_error {
+	local res=$?
+	if [ "$res" = "1" ]; then
+	    echo "$1: Canceled by user"
+	elif [ "$res" = "2" ]; then
+		echo "$1: Error occurred, please review"
+	else
+		echo "$1: result code $res"
+	fi
+
+	prompt_for_cleaning
+    exit 1
+}
+
+function clone_repo {
+    echo "Cloning branch $1"
+	git clone -b "$1" https://github.com/GigaSpaces-QA/DevOps.git
+	if [ "$?" != "0" ]; then
+		return 2
+	else
+		return 0
+	fi
+}
+
+function cherry_pick_missing_file {
+    echo "cherry pick create_tags.sh"
+	git cherry-pick --no-commit d8110cb 
+	if [ "$?" != "0" ]; then
+		return 2
+	else
+		return 0
+	fi
+}
+
+function commit_push {
+	local modifiedFiles=$(git status | grep 'new file:' | wc -l | sed -e 's/^[ \t]*//')
+	if [ "$modifiedFiles" != 1 ]; then
+		echo "No files were modified."
+		return 0
+	fi
+
+	echo "Committing changes"
+	git commit -am "adding create_tags.sh"
+	if [ "$?" != "0" ]; then
+	    echo "Commit failed"
+		return 2
+	fi
+
+	echo "Pushing changes to remote repository"
+	git push
+	if [ "$?" != "0" ]; then
+		echo "Push failed"
+		return 2
+	else
+		return 0
+	fi
+}
+
+function prompt_for_cleaning {
+	while true; do
+		read -p "Delete working directory ($workdir) (y/n)?" choice
+		case "$choice" in 
+		  y|Y ) rm -rf "$workdir" ; break;;
+		  n|N ) break;;
+		  * ) echo "invalid" ;;
+		esac
+	done
+}
+
+function start {
+    local branch_name="$1"
+
+    if [ -z "$branch_name" ]; then
+    	echo "branch name must be specified"
+    	exit 1
+    fi
+    
+    echo "DevOps will be cloned into $workdir"
+    mkdir "$workdir"
+    cd "$workdir"
+	clone_repo "$branch_name" || handle_error "Clone failed"
+
+	cd DevOps
+
+	cherry_pick_missing_file || handle_error "cherry pick create_tags.sh"
+
+	commit_push || handle_error "Commit/Push failed"
+	
+	echo "Script finished without errors"
+
+	prompt_for_cleaning
+}
+
+
+start "$1"
